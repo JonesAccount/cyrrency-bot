@@ -69,4 +69,4 @@ CURRENCY_ALIASES = {
     "ранд": "ZAR"
 }
 
-TARGET_CURRENCIES = ["USD", "EUR", "CNY", "INR", "JPY",   "AUD", "BGN", "BRL", "CAD", "CHF", "CZK", "DKK", "GBP", "HKD", "HUF", "IDR", "ILS", "ISK", "KRW", "MXN", "MYR", "NOK", "NZD", "PHP", "PLN", "RON", "SEK", "SGD", "THB", "TRY", "ZAR"]
+TARGET_CURRENCIES = ["USD", "EUR", "CNY", "INR", "JPY", "AUD", "BGN", "BRL", "CAD", "CHF", "CZK", "DKK", "GBP", "HKD", "HUF", "IDR", "ILS", "ISK", "KRW", "MXN", "MYR", "NOK", "NZD", "PHP", "PLN", "RON", "SEK", "SGD", "THB", "TRY", "ZAR"]

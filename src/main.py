@@ -1,10 +1,11 @@
 import asyncio; import logging; import requests; import re
 from rates import CURRENCY_ALIASES, TARGET_CURRENCIES
-from aiogram import Bot, Dispatcher, types
+from aiogram import Bot, Dispatcher, types, F
+from config import TOKEN, API_URL, DEVELOPER
 from rates_emoji import CURRENCY_EMOJI
 from aiogram.filters import Command
-from config import TOKEN, API_URL
 from keyboards import keyboard
+
 
 logging.basicConfig(level=logging.INFO)
 
@@ -18,35 +19,12 @@ async def start(message: types.Message):
 🤖 <b>Я помогу тебе с конвертацией валют</b>.
 
 ❔ <b>Как пользоваться</b>:
-Напиши мне сумму и валюту — например, "100 USD" или можешь использовать символы типа "50€" или "1000₽". Если лень писать много нулей, пиши сокращённо: "1к рублей".
+Просто напиши сумму и валюту из списка — например, "100 usd" или "50 eur". Для удобства больших сумм можно использовать сокращения: "1к usd".
 
 💰 <b>Какие валюты работают</b>:
-- <b>Фиат</b>: 🇺🇸USD | 🇪🇺EUR | 🇷🇺RUB | 🇺🇦UAH | 🇧🇾BYN | 🇰🇿KZT | 🇨🇳CNY | 🇮🇳INR | 🇺🇿UZS
-
-- <b>Крипта</b>: 🔱BTC | ♦ETH | 💎TON | 🕵XMR | 🫗NOT | 🐶DOGS
-
-- <b>Другие</b>: 🎲ROBUX
+🇺🇸USD | 🇪🇺EUR | 🇨🇳CNY | 🇮🇳INR | 🇯🇵JPY | 🇦🇺AUD | 🇧🇬BGN | 🇧🇷BRL | 🇨🇦CAD | 🇨🇭CHF | 🇨🇿CZK | 🇩🇰DKK | 🇬🇧GBP | 🇭🇰HKD | 🇭🇺HUF | 🇮🇩IDR | 🇮🇱ILS | 🇮🇸ISK | 🇰🇷KRW | 🇲🇽MXN | 🇲🇾MYR | 🇳🇴NOK | 🇳🇿NZD | 🇵🇭PHP | 🇵🇱PLN | 🇷🇴RON | 🇸🇪SEK | 🇸🇬SGD | 🇹🇭THB | 🇹🇷TRY | 🇿🇦ZAR
 
 <b>Давай попробуем? Пиши любую сумму!</b>""", parse_mode="HTML", reply_markup=keyboard)
-
-
-@dp.message()
-async def convert_currency(message: types.Message):
-    amount, base_currency = parse_message(message.text)
-    if not amount or not base_currency:
-        return
-    try:
-        rates = get_rates(base_currency)
-    except:
-        await message.answer("Не удалось получить курсы валют.")
-        return
-    text = f"{CURRENCY_EMOJI.get(base_currency, '')} <b>{base_currency}</b> <code>{amount}</code>:\n\n"
-    for target in TARGET_CURRENCIES:
-        if target == base_currency or target not in rates:
-            continue
-        converted = amount * rates[target]
-        text += f"{CURRENCY_EMOJI.get(target, '')} <b>{target}</b>: <code>{converted:.2f}</code>\n"
-    await message.answer(text, parse_mode="HTML")
 
 
 def get_rates(base_currency: str) -> dict:
@@ -65,6 +43,41 @@ def parse_message(text: str):
         if word in text:
             return amount, code
     return None, None
+
+
+async def build_currency_text(message_text: str):
+    amount, base_currency = parse_message(message_text)
+    if not amount or not base_currency:
+        return None, "Напиши сумму и валюту из списка"
+    try:
+        rates = get_rates(base_currency)
+    except:
+        return None, "Не удалось получить курсы валют."
+    text = f"{CURRENCY_EMOJI.get(base_currency, '')} <b>{base_currency}</b> <code>{amount}</code>:\n\n"
+    for target in TARGET_CURRENCIES:
+        if target == base_currency or target not in rates:
+            continue
+        converted = amount * rates[target]
+        text += f"{CURRENCY_EMOJI.get(target, '')} <b>{target}</b>: <code>{converted:.2f}</code>\n"
+    return text, None
+
+
+@dp.message(Command("rates"))
+async def rates_cmd(message: types.Message):
+    text, error = await build_currency_text("100 usd")
+    await message.answer(text + DEVELOPER, parse_mode="HTML", disable_web_page_preview=True)
+
+
+@dp.callback_query(F.data.startswith("btn_cur"))
+async def btn_cur(callback: types.CallbackQuery):
+    text, error = await build_currency_text(callback.message.text)
+    if error:
+        await callback.message.answer(error)
+        await callback.answer()
+        return
+    await callback.message.answer(text + DEVELOPER, parse_mode="HTML", disable_web_page_preview=True)
+    await callback.answer()
+
 
 
 async def main():

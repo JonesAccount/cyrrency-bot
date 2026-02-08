@@ -1,64 +1,15 @@
 import asyncio; import logging; import requests; import re
-
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+from rates import CURRENCY_ALIASES, TARGET_CURRENCIES
 from aiogram import Bot, Dispatcher, types
+from rates_emoji import CURRENCY_EMOJI
 from aiogram.filters import Command
 from config import TOKEN, API_URL
+from keyboards import keyboard
 
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
-
-CURRENCY_ALIASES = {
-    "доллар": "USD",
-    "долларов": "USD",
-    "бакс": "USD",
-    "баксов": "USD",
-
-    "евро": "EUR",
-
-    "руб": "RUB",
-    "рубль": "RUB",
-    "рублей": "RUB",
-
-    "тенге": "KZT",
-    "тг": "KZT",
-}
-
-
-TARGET_CURRENCIES = ["USD", "EUR", "RUB", "KZT"]
-
-
-button_currency = InlineKeyboardButton(text="Курсы", callback_data="btn_cur")
-button_commands = InlineKeyboardButton(text="Все команды", callback_data="btn_cmd")
-
-keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [button_currency],
-        [button_commands]
-    ])
-
-def get_rates(base_currency: str) -> dict:
-    response = requests.get(API_URL, params={"from": base_currency}, timeout=10)
-    response.raise_for_status()
-    return response.json()["rates"]
-
-
-def parse_message(text: str):
-    text = text.lower()
-
-    amount_match = re.search(r"\d+(\.\d+)?", text)
-    if not amount_match:
-        return None, None
-
-    amount = float(amount_match.group())
-
-    for word, code in CURRENCY_ALIASES.items():
-        if word in text:
-            return amount, code
-
-    return None, None
 
 
 @dp.message(Command("start"))
@@ -80,29 +31,40 @@ async def start(message: types.Message):
 
 
 @dp.message()
-async def convert_handler(message: types.Message):
+async def convert_currency(message: types.Message):
     amount, base_currency = parse_message(message.text)
-
     if not amount or not base_currency:
-        await message.answer("Не понял 🤷‍♂️\nПример: 10 долларов")
         return
-
     try:
         rates = get_rates(base_currency)
+    except:
+        await message.answer("Не удалось получить курсы валют.")
+        return
+    text = f"{CURRENCY_EMOJI.get(base_currency, '')} <b>{base_currency}</b> <code>{amount}</code>:\n\n"
+    for target in TARGET_CURRENCIES:
+        if target == base_currency or target not in rates:
+            continue
+        converted = amount * rates[target]
+        text += f"{CURRENCY_EMOJI.get(target, '')} <b>{target}</b>: <code>{converted:.2f}</code>\n"
+    await message.answer(text, parse_mode="HTML")
 
-        lines = [f"{amount} {base_currency} ≈"]
 
-        for cur in TARGET_CURRENCIES:
-            if cur == base_currency:
-                continue
-            if cur in rates:
-                value = round(amount * rates[cur], 2)
-                lines.append(f"{value} {cur}")
+def get_rates(base_currency: str) -> dict:
+    response = requests.get(API_URL, params={"from": base_currency}, timeout=10)
+    response.raise_for_status()
+    return response.json()["rates"]
 
-        await message.answer("\n".join(lines))
 
-    except Exception:
-        await message.answer("Ошибка получения курсов 😕")
+def parse_message(text: str):
+    text = text.lower()
+    amount_match = re.search(r"\d+(\.\d+)?", text)
+    if not amount_match:
+        return None, None
+    amount = float(amount_match.group())
+    for word, code in CURRENCY_ALIASES.items():
+        if word in text:
+            return amount, code
+    return None, None
 
 
 async def main():
